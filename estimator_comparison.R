@@ -181,7 +181,7 @@ sim_table_rounded <- copy(sim_table_wide) %>%
 
 ### Saving the results for later:
 
-# saveRDS(object = sim_table_wide, 
+# saveRDS(object = sim_table_wide,
 #          file = here("estimator_comparison_res_raw.RDS"))
 
 
