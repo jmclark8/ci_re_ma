@@ -3,12 +3,15 @@
 ### simple simulation setting designed to show at a high level how our approaches
 ### differ and when ideas from RE-CI-MA might be more appropriate.
 
+### Note: on 2024-09-16, I ditched the delta_0 component.
+
 ### Loading packages
 
 library(MASS) ### For mvrnorm
 library(data.table) ### For organizing results into a table
 library(here) ### For interacting with the working directory
 library(ggplot2)
+library(magrittr)
 
 
 # Defining the simulation -------------------------------------------------
@@ -24,10 +27,9 @@ sim_rep <- function(deltas, ### Size of potential outcome shift
   ##### Saving important values #####
   
   ### Potential outcome shifts:
-  delta_0 <- deltas[1]
-  delta_1 <- deltas[2]
-  delta_2 <- deltas[3]
-  delta_3 <- deltas[4]
+  delta_1 <- deltas[1]
+  delta_2 <- deltas[2]
+  delta_3 <- deltas[3]
   
   ### Setting-specific sample sizes:
   n_0 <- sample_sizes[1]
@@ -65,7 +67,6 @@ sim_rep <- function(deltas, ### Size of potential outcome shift
   
   ### Outcome information
   
-  target_pop_data[, y_a := 0.5+0.5*X_1+0.5*X_2+0.5*X_3+delta_0+rnorm(n_0)]
   study_1_data[, y_a := 0.5+0.5*X_1+0.5*X_2+0.5*X_3+delta_1+rnorm(n_1)]
   study_2_data[, y_a := 0.5+0.5*X_1+0.5*X_2+0.5*X_3+delta_2+rnorm(n_2)]
   study_3_data[, y_a := 0.5+0.5*X_1+0.5*X_2+0.5*X_3+delta_3+rnorm(n_3)]
@@ -73,10 +74,7 @@ sim_rep <- function(deltas, ### Size of potential outcome shift
   ### Creating a combined dataset for the Dahabreh et al. method and adding a trial
   ### participation indicator:
   
-  combined_data <- rbindlist(list(copy(target_pop_data)[, R := 0], 
-                                  copy(study_1_data)[, R := 1], 
-                                  copy(study_2_data)[, R := 1], 
-                                  copy(study_3_data)[, R := 1]))
+  combined_trial_data <- rbindlist(list(study_1_data, study_2_data, study_3_data))
   
   ### Fitting the outcome models. (Note that we focus here on average
   ### potential outcomes alone, not average differences of potential
@@ -85,7 +83,7 @@ sim_rep <- function(deltas, ### Size of potential outcome shift
   study_1_model <- lm(y_a ~ X_1+X_2+X_3, data = study_1_data)
   study_2_model <- lm(y_a ~ X_1+X_2+X_3, data = study_2_data)
   study_3_model <- lm(y_a ~ X_1+X_2+X_3, data = study_3_data)
-  combined_model <- lm(y_a ~ X_1+X_2+X_3, data = combined_data[R==1])
+  combined_model <- lm(y_a ~ X_1+X_2+X_3, data = combined_trial_data)
   
   ### Adding the predictions to the target population data
   
@@ -138,21 +136,14 @@ sim_results_fcn <- function(deltas, sample_sizes, combine_data){
                                    sample_sizes = sample_sizes, 
                                    combine_data = combine_data))
   
-  true_value <- 0.5+0.5+0.5+0.5+deltas[1]
+  est_mean <- mean(sims)
   
-  bias <- mean(sims - true_value)
-  
-  rmse <- sqrt(mean((sims - true_value)^2))
-  
-  res_table <- data.table(bias, rmse)
-  
-  return(res_table)
+  return(est_mean)
 }
 
 ### Generating the table
 
-sim_scenarios <- data.table("delta_0" = c(1, 1, 1, 1, 0, 0), 
-                            "delta_1" = c(1.5, 1.5, 1.5, 1.5, 0, 0), 
+sim_scenarios <- data.table("delta_1" = c(1.5, 1.5, 1.5, 1.5, 0, 0), 
                             "delta_2" = c(0.5, 0.5, 0.75, 0.75, 0, 0), 
                             "delta_3" = c(5, 5, 1.25, 1.25, 0, 0), 
                             "n_0" = c(100, 100, 100, 100, 100, 100), 
@@ -166,7 +157,7 @@ sim_scenarios[, scenario := paste0("Scenario ", .I)]
 
 ### Computing the mean bias and rmse
 
-sim_results <- sim_scenarios[, sim_results_fcn(deltas = c(delta_0, delta_1, 
+sim_results <- sim_scenarios[, sim_results_fcn(deltas = c(delta_1, 
                                                           delta_2, delta_3), 
                                                sample_sizes = c(n_0, n_1, 
                                                                 n_2, n_3), 
@@ -179,17 +170,19 @@ sim_table <- merge(sim_scenarios, sim_results,
 ### Need to do some re-shaping:
 
 sim_table_wide <- dcast(sim_table[, !c("scenario")], 
-                        delta_0 + delta_1 + delta_2 + delta_3 +
+                        delta_1 + delta_2 + delta_3 +
                           n_0 + n_1 + n_2 + n_3 ~ combine_data, 
-                        value.var = c("bias", "rmse"))
+                        value.var = c("V1"))
+
+sim_table_rounded <- copy(sim_table_wide) %>%
+  .[, c("FALSE", "TRUE") := lapply(.SD, 
+                                   function(x){format(round(x, digits = 3), nsmall = 3)}),
+                                   .SDcols = c("FALSE", "TRUE")]
 
 ### Saving the results for later:
 
 # saveRDS(object = sim_table_wide, 
 #          file = here("estimator_comparison_res_raw.RDS"))
-
-
-
 
 
 
