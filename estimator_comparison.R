@@ -3,14 +3,13 @@
 ### simple simulation setting designed to show at a high level how our approaches
 ### differ and when ideas from RE-CI-MA might be more appropriate.
 
-### Note: on 2024-09-16, I ditched the delta_0 component.
-
 ### Loading packages
 
 library(MASS) ### For mvrnorm
 library(data.table) ### For organizing results into a table
 library(here) ### For interacting with the working directory
 library(ggplot2)
+library(pracma)
 library(magrittr)
 
 
@@ -184,8 +183,85 @@ sim_table_rounded <- copy(sim_table_wide) %>%
 # saveRDS(object = sim_table_wide,
 #          file = here("estimator_comparison_res_raw.RDS"))
 
+### Also computing the true values:
 
+true_values_combine <- copy(sim_scenarios) %>%
+  .[, total_trial_size := n_1+n_2+n_3] %>%
+  .[combine_data == TRUE, true_value := (n_1/total_trial_size)*(1.5+.5+delta_1)+
+      (n_2/total_trial_size)*(1.5+.5+delta_2)+
+      (n_3/total_trial_size)*(1.5+.5+delta_3)]
 
+### Doing so for the Dahabreh method is more complex:
+
+get_true_dahabreh <- function(delta_1, delta_2, delta_3, 
+                              n_1, n_2, n_3){
+  
+  
+  ### First, saving the true coefficients for each study's outcome model
+  coef_1 <- matrix(c(0.5+delta_1, .5, .5, .5), nrow = 4, ncol = 1)
+  coef_2 <- matrix(c(0.5+delta_2, .5, .5, .5), nrow = 4, ncol = 1)
+  coef_3 <- matrix(c(0.5+delta_3, .5, .5, .5), nrow = 4, ncol = 1)
+  
+  ### Saving the sample size proportions
+  
+  total_trial_n <- n_1+n_2+n_3
+  p_1 <- n_1/total_trial_n
+  p_2 <- n_2/total_trial_n
+  p_3 <- n_3/total_trial_n
+  ### Now, saving the true weights for computing the true coefficients of the 
+  ### combined outcome model
+  
+  X_1_prod <- matrix(c(1, 1.5, 1.5, 1.5, 
+                       1.5, 3.25, 2.75, 2.75,
+                       1.5, 2.75, 3.25, 2.75,
+                       1.5, 2.75, 2.75, 3.25),
+                     ncol = 4, nrow = 4, byrow = TRUE)
+  
+  X_2_prod <- matrix(c(1.00, 0.50, 0.50, 0.50,
+                       0.50, 1.25, 0.75, 0.75,
+                       0.50, 0.75, 1.25, 0.75,
+                       0.50, 0.75, 0.75, 1.25),
+                     ncol = 4, nrow = 4, byrow = TRUE)
+  
+  X_3_prod <- matrix(c(1.00, 0.00, 0.00, 0.00, 
+                       0.00, 1.00, 0.50, 0.50,
+                       0.00, 0.50, 1.00, 0.50,
+                       0.00, 0.50, 0.50, 1.00),
+                     ncol = 4, nrow = 4, byrow = TRUE)
+  
+  X_prod <- p_1*X_1_prod+p_2*X_2_prod+p_3*X_3_prod
+  X_prod_inv <- inv(X_prod)
+  
+  ### Computing weights for the overall coefficient:
+  W_1 <- p_1*X_prod_inv%*%X_1_prod
+  W_2 <- p_2*X_prod_inv%*%X_2_prod
+  W_3 <- p_3*X_prod_inv%*%X_3_prod
+  overall_coeff <- W_1%*%coef_1+W_2%*%coef_2+W_3%*%coef_3
+  
+  ### Plugging in the mean covariate values for the target population
+  true_value <- matrix(c(1, 1, 1, 1), nrow = 1, ncol = 4)%*%overall_coeff %>%
+    as.numeric()
+  true_value_floor <- floor(true_value)
+  true_value_resid <- true_value-true_value_floor
+  true_value_frac <- true_value_resid %>%
+    fractions() %>%
+    as.character()
+  
+  true_value_char <- paste0(true_value_floor, " + ", true_value_frac)
+  
+  return(true_value_char)
+  
+  
+  
+}
+
+true_values_dahabreh <- copy(sim_scenarios) %>%
+  .[combine_data == TRUE] %>%
+  .[, .(delta_1, delta_2, delta_3, n_1, n_2, n_3, scenario)] %>%
+  .[, get_true_dahabreh(delta_1 = delta_1, delta_2 = delta_2, 
+                        delta_3 = delta_3, 
+                        n_1 = n_1, n_2 = n_2, n_3 = n_3), 
+    by = "scenario"]
 
 
 
