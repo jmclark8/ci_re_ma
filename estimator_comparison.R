@@ -3,6 +3,12 @@
 ### simple simulation setting designed to show at a high level how our approaches
 ### differ and when ideas from RE-CI-MA might be more appropriate.
 
+### Note that this includes both a simulation study illustrating the differences
+### in finite samples and a simple function that computes the different "true" values
+### targeted by each approach. I put true in scare quotes b/c it's the values for
+### which the two approaches are consistent under this setup. We dont' define enough
+### of the data generating process to interpret those targets causally.
+
 ### Loading packages
 
 library(MASS) ### For mvrnorm
@@ -13,7 +19,9 @@ library(pracma)
 library(magrittr)
 
 
-# Defining the simulation -------------------------------------------------
+
+# Running the simulation --------------------------------------------------
+
 
 sim_rep <- function(deltas, ### Size of potential outcome shift
                     sample_sizes, ### Number of individuals in each setting
@@ -183,13 +191,16 @@ sim_table_rounded <- copy(sim_table_wide) %>%
 # saveRDS(object = sim_table_wide,
 #          file = here("estimator_comparison_res_raw.RDS"))
 
-### Also computing the true values:
 
-true_values_combine <- copy(sim_scenarios) %>%
-  .[, total_trial_size := n_1+n_2+n_3] %>%
-  .[combine_data == TRUE, true_value := (n_1/total_trial_size)*(1.5+.5+delta_1)+
-      (n_2/total_trial_size)*(1.5+.5+delta_2)+
-      (n_3/total_trial_size)*(1.5+.5+delta_3)]
+# Computing the targets ---------------------------------------------------
+
+true_values_ci_re_ma <- copy(sim_scenarios) %>%
+  ### Computing these for our approach is straightforward.
+  .[combine_data == FALSE] %>%
+  .[, .(delta_1, delta_2, delta_3, n_1, n_2, n_3)] %>%
+  .[, true_value := (1/3)*(1.5+.5+delta_1)+
+      (1/3)*(1.5+.5+delta_2)+
+      (1/3)*(1.5+.5+delta_3)]
 
 ### Doing so for the Dahabreh method is more complex:
 
