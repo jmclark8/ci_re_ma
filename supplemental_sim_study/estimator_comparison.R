@@ -162,8 +162,6 @@ sim_scenarios <- data.table("delta_1" = c(1.5, 1.5, 1.5, 1.5, 0, 0),
 
 sim_scenarios[, scenario := paste0("Scenario ", .I)]
 
-### Computing the mean bias and rmse
-
 sim_results <- sim_scenarios[, sim_results_fcn(deltas = c(delta_1, 
                                                           delta_2, delta_3), 
                                                sample_sizes = c(n_0, n_1, 
@@ -193,6 +191,10 @@ sim_table_rounded <- copy(sim_table_wide) %>%
 
 
 # Computing the targets ---------------------------------------------------
+
+### "Target" here refers to the population-level quantity targeted by
+### each approach. This is analogous to, e.g., the population OLS coefficient. It is
+### not necessarily equal to a causal parameter.
 
 true_values_ci_re_ma <- copy(sim_scenarios) %>%
   ### Computing these for our approach is straightforward.
